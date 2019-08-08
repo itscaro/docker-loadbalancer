@@ -5,10 +5,11 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/client"
+	dockerApiTypes "github.com/docker/docker/api/types"
+	dockerFilters "github.com/docker/docker/api/types/filters"
+	dockerClient "github.com/docker/docker/client"
 	"golang.org/x/net/context"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"sort"
@@ -17,7 +18,6 @@ import (
 	"syscall"
 	"text/template"
 	"time"
-	"io/ioutil"
 )
 
 type Endpoint struct {
@@ -32,9 +32,10 @@ var haproxyDesiredState bool
 func main() {
 
 	ctx := context.Background()
-	cli, err := client.NewClientWithOpts()
+	cli, err := dockerClient.NewEnvClient()
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	evt := make(chan int, 1)
@@ -43,10 +44,11 @@ func main() {
 
 		lastHash := "-1"
 
-		filters := filters.NewArgs(filters.KeyValuePair{Key: "label", Value: "lb.enable=Y"})
+		filters := dockerFilters.NewArgs()
+		filters.Add("label", "lb.enable=1")
 
 		for {
-			containers, err := cli.ContainerList(ctx, types.ContainerListOptions{Filters: filters})
+			containers, err := cli.ContainerList(ctx, dockerApiTypes.ContainerListOptions{Filters: filters})
 			if err != nil {
 				panic(err)
 			}
@@ -98,7 +100,7 @@ func main() {
 
 }
 
-func readContainerNetwork(container types.Container, group map[int][]Endpoint) (err error) {
+func readContainerNetwork(container dockerApiTypes.Container, group map[int][]Endpoint) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println("Container ", container.Names[0][1:], " skipped, due to error: ", r)
@@ -124,7 +126,7 @@ func readContainerNetwork(container types.Container, group map[int][]Endpoint) (
 
 func generateHAProxyConfig(group map[int][]Endpoint) (config string, hash string, err error) {
 
-	 conf := `
+	conf := `
 global
    stats timeout 30s
    daemon
@@ -171,7 +173,6 @@ backend port_{{$key}}_backends
 
 	t := template.Must(template.New("conf").Parse(conf))
 
-
 	buf := new(bytes.Buffer)
 	err = t.Execute(buf, group)
 	if err != nil {
@@ -201,7 +202,7 @@ func writeHAProxyConfig(config string) error {
 
 func stopHAProxyIfStarted() {
 	haproxyDesiredState = false
-	fmt.Println("No container found with label lb.enable=Y")
+	fmt.Println("No container found with label lb.enable=1")
 	if haproxy != nil {
 		fmt.Println("Stopping haproxy")
 		haproxy.Signal(syscall.SIGTERM)

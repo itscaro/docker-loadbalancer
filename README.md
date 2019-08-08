@@ -14,13 +14,13 @@ Create a simple web application and annotate with labels:
 ```
 docker run -d \
          --rm \
-         --label "lb.enable=Y"  \
+         --label "lb.enable=1"  \
          --label "lb.publish=80" \
          --label "lb.target=80" \
          --name web1 \
          nginx:alpine
 ```
-- Label ```lb.enable=Y``` Makes this container eligible for load balancer.
+- Label ```lb.enable=1``` Makes this container eligible for load balancer.
 - Label ```lb.publish=80``` Indicates the port published by the lb.
 - Label ```lb.target=80``` Indicates the port targeted to the container.
 
@@ -53,7 +53,7 @@ Add another webserver:
 ```
 docker run -d \
          --rm \
-         --label "lb.enable=Y"  \
+         --label "lb.enable=1"  \
          --label "lb.publish=80" \
          --label "lb.target=80" \
          --name web2 \
@@ -83,7 +83,7 @@ docker service create \
         --name nginx \
         --replicas 3 \
         --constraint 'node.labels.host  == sauron' \ 
-        --container-label 'lb.enable=Y' \
+        --container-label 'lb.enable=1' \
         --container-label 'lb.publish=803' \
         --container-label 'lb.target=80' \
         nginx:alpine
